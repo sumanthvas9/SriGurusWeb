@@ -17,8 +17,8 @@ class UserDetailsInline(admin.StackedInline):
 
 @admin.register(models.BaseUser)
 class BaseUserAdmin(admin.ModelAdmin):
-    list_display = ('email', 'name', 'phoneNumber', 'otpVerified', 'is_active', 'is_superuser')
-    search_fields = ("email__icontains", 'name__icontains')
+    list_display = ('email', 'name', 'phoneNumber', 'otpVerified', 'registeredThrough', 'is_active', 'is_superuser')
+    search_fields = ("email__icontains", 'name__icontains', 'phoneNumber__icontains', 'registeredThrough__iexact')
 
     def make_active(self, request, queryset):
         queryset.update(is_active=1)

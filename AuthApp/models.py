@@ -9,8 +9,9 @@ from django.dispatch import receiver
 
 class BaseUser(AbstractUser):
     name = models.CharField(db_column='name', verbose_name='Name', blank=False, max_length=255, null=False)
-    phoneNumber = models.CharField(db_column='phone_number', verbose_name='Phone Number', max_length=20, blank=True, null=True, default=None)
+    phoneNumber = models.CharField(db_column='phone_number', verbose_name='Phone Number', max_length=20, unique=False, null=True)
     otpVerified = models.BooleanField(db_column='otp_verified', verbose_name='OTP Verified', default=False)
+    registeredThrough = models.CharField(db_column='registered_through', verbose_name='Registered Through', max_length=50, default="WEB")
 
     # objects = UserManager()
 

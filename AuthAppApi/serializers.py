@@ -1,9 +1,7 @@
-from django.core.exceptions import ValidationError
 from django.utils.encoding import force_text
 from rest_framework import serializers, status
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.exceptions import APIException
-from django.contrib.auth.password_validation import validate_password
 
 from AuthApp.custom.email import EmailHandling
 from AuthApp.models import EmailDirectory, EMAIL_TYPE_CHOICES, UserDetails, Categories, ServiceRequest
@@ -24,7 +22,6 @@ class CustomAPIValidation(APIException):
                 res_list = force_text(detail).strip('][').split(', ')
                 for res_ind in res_list:
                     errors.append(res_ind.replace("'", ''))
-                print(errors)
                 if errors:
                     self.detail = {'msg': errors[0] + format("\n".join(errors[1:]))}
                 else:
@@ -40,12 +37,13 @@ class CustomAPIValidation(APIException):
 class RegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserModel
-        fields = ['email', 'password', 'name', 'mobile']
+        fields = ['email', 'password', 'name', 'mobile', 'provider_id']
         extra_kwargs = {
             'email': {'required': True, 'error_messages': {'blank': "Please provide Email Id."}},
             'password': {'required': True, 'write_only': True, 'error_messages': {'blank': "Please provide Email Id."}},
             'name': {'required': True, 'error_messages': {'blank': "Please provide Name."}},
             'mobile': {"source": "phoneNumber", 'required': False, 'error_messages': {'blank': "Please provide Phone Number."}},
+            "provider_id": {'source': "registeredThrough"}
         }
 
     @staticmethod
@@ -60,10 +58,12 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate_email(value):
         try:
             user_model = UserModel.objects.get(**{'email': value})
-            if user_model.otpVerified:
+            reg_through = user_model.registeredThrough.upper()
+            if user_model.otpVerified and (reg_through in ['WEB', 'APP']):
                 raise CustomAPIValidation(detail='Account already verified. Please Login.', field="email", status_code=status.HTTP_302_FOUND)
             else:
-                raise CustomAPIValidation(detail='User already registered. Please Login.', field="email", status_code=status.HTTP_302_FOUND)
+                raise CustomAPIValidation(detail='User already registered through ' + reg_through + '. Please Login.', field="email",
+                                          status_code=status.HTTP_302_FOUND)
                 # token, _ = Token.objects.get_or_create(user=user_model)
                 # raise CustomAPIValidation(detail={"sriguru_token": token.key, "otp_verified": "No", "msg": "Please verify your account."},
                 #                           field="email", status_code=310)
@@ -73,11 +73,11 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def validate_mobile(value):
-        try:
-            UserModel.objects.get(**{'phoneNumber': value})
-            raise CustomAPIValidation(detail='Phone Number already exists.', field="mobile", status_code=status.HTTP_302_FOUND)
-        except UserModel.DoesNotExist:
-            pass
+        # try:
+        #     UserModel.objects.get(**{'phoneNumber': value})
+        #     raise CustomAPIValidation(detail='Phone Number already exists.', field="mobile", status_code=status.HTTP_302_FOUND)
+        # except UserModel.DoesNotExist:
+        #     pass
         return value
 
     def validate(self, attrs):
@@ -93,6 +93,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             email=validated_data.get('email'),
             name=validated_data.get('name'),
             phoneNumber=validated_data.get('phoneNumber'),
+            registeredThrough="APP" if validated_data.get('registeredThrough') is None else validated_data.get('registeredThrough'),
         )
         user.set_password(validated_data['password'])
         user.save()
@@ -100,7 +101,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.CharField(max_length=255)
+    user_name = serializers.CharField(max_length=255)
     password = serializers.CharField(max_length=128, write_only=True)
 
     def __init__(self, *args, **kwargs):
@@ -111,7 +112,7 @@ class LoginSerializer(serializers.Serializer):
     def validate_password(value):
         return value
 
-    def validate_email(self, value):
+    def validate_user_name(self, value):
         try:
             user_model = UserModel.objects.get(**{'email': value})
             if not user_model.otpVerified:
@@ -124,11 +125,11 @@ class LoginSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         validated_data = super(LoginSerializer, self).validate(attrs=attrs)
-        self.user = authenticate(username=validated_data.get('email'), password=validated_data.get('password'))
+        self.user = authenticate(username=validated_data.get('user_name'), password=validated_data.get('password'))
         if not self.user:
-            raise CustomAPIValidation(detail="Invalid credentials provided.", field="password", status_code=status.HTTP_404_NOT_FOUND)
+            raise CustomAPIValidation(detail="Invalid credentials provided.", field="password", status_code=status.HTTP_403_FORBIDDEN)
         if not self.user.is_active:
-            raise CustomAPIValidation(detail="User is inactive.", field="password", status_code=status.HTTP_404_NOT_FOUND)
+            raise CustomAPIValidation(detail="User is inactive.", field="password", status_code=status.HTTP_403_FORBIDDEN)
         return validated_data
 
     def update(self, instance, validated_data):
@@ -164,6 +165,9 @@ class ForgotPasswordSerializer(serializers.ModelSerializer):
             self.user = UserModel.objects.get(email=validated_data['email_id'])
         except UserModel.DoesNotExist:
             raise CustomAPIValidation(detail="Invalid email id provided", field="password", status_code=status.HTTP_406_NOT_ACCEPTABLE)
+        if self.user.registeredThrough.upper() not in ['WEB', 'APP']:
+            raise CustomAPIValidation(detail="Forgot password not allowed for accounts registered through social login", field="email_id",
+                                      status_code=status.HTTP_403_FORBIDDEN)
         if fp_type == 'init':
             pass
         elif fp_type == 'submit':
@@ -197,6 +201,37 @@ class ForgotPasswordSerializer(serializers.ModelSerializer):
             return 'submit'
 
 
+class OTPResendSerializer(serializers.Serializer):
+    email_id = serializers.EmailField(required=True,
+                                      error_messages={'blank': "Email Id can not be empty.", 'required': 'Email Id is required.'})
+    type = serializers.ChoiceField(required=True, choices=EMAIL_TYPE_CHOICES,
+                                   error_messages={'blank': "Type can not be empty.", 'required': 'Type is required.'})
+
+    def __init__(self, *args, **kwargs):
+        self.domain = kwargs.pop("domain")
+        super(OTPResendSerializer, self).__init__(*args, **kwargs)
+
+    def validate_email(self, value):
+        try:
+            UserModel.objects.get(**{'email': value})
+        except UserModel.DoesNotExist:
+            raise CustomAPIValidation(detail="User does not exist.", field="email", status_code=status.HTTP_404_NOT_FOUND)
+        return value
+
+    def validate(self, attrs):
+        validated_data = super(OTPResendSerializer, self).validate(attrs=attrs)
+        return validated_data
+
+    def create(self, validated_data):
+        email_handling = EmailHandling()
+        email_handling.send_email(email_type=validated_data.get('type', "Resend"),
+                                  user=UserModel.objects.get(**{'email': validated_data.get('email_id')}), domain=self.domain)
+        return True
+
+    def update(self, instance, validated_data):
+        pass
+
+
 class OTPValidationSerializer(serializers.Serializer):
     email_id = serializers.EmailField(required=True,
                                       error_messages={'blank': "Email Id can not be empty.", 'required': 'Email Id is required.'})
@@ -216,15 +251,15 @@ class OTPValidationSerializer(serializers.Serializer):
         validated_data = super(OTPValidationSerializer, self).validate(attrs=attrs)
         query_filter_dict = {'user': UserModel.objects.get(email=validated_data.get('email_id')), 'type': validated_data.get('type'),
                              'otpCode': validated_data.get('otp'), 'isActive': True}
-        print(EmailDirectory.objects.filter(**query_filter_dict).values())
         self.query_set = EmailDirectory.objects.filter(**query_filter_dict).values()
+        if not self.query_set:
+            raise CustomAPIValidation(detail="Incorrect OTP provided.", field="otp", status_code=status.HTTP_203_NON_AUTHORITATIVE_INFORMATION)
         return validated_data
 
     def create(self, validated_data):
         self.query_set.update(isActive=False)
+        UserModel.objects.filter(email=validated_data.get('email_id')).update(otpVerified=True)
         user = UserModel.objects.get(email=validated_data.get('email_id'))
-        user.otpVerified = True
-        user.save()
         return user
 
     def update(self, instance, validated_data):
@@ -245,12 +280,14 @@ USER_DETAILS_KWARGS = {
 class UserDetailsSerializer(serializers.ModelSerializer):
     user_obj = UserModel.objects.all()
     user_id = serializers.PrimaryKeyRelatedField(queryset=user_obj, source='user.id')
-    name = serializers.PrimaryKeyRelatedField(queryset=user_obj, source='user.name')
-    email_id = serializers.PrimaryKeyRelatedField(queryset=user_obj, source='user.email')
+    name = serializers.CharField(source='user.name', error_messages={'blank': "Name can not be empty.", 'required': 'Name is required.'})
+    mobile_no = serializers.CharField(source='user.phoneNumber')
+    email_id = serializers.EmailField(source='user.email',
+                                      error_messages={'blank': "Email Id can not be empty.", 'required': 'Email Id is required.'})
 
     class Meta:
         model = UserDetails
-        fields = ['user_dob', 'gender', 'address', 'city', 'state', 'country', 'pincode', 'user_id', 'name', 'email_id']
+        fields = ['user_dob', 'gender', 'address', 'city', 'state', 'country', 'pincode', 'user_id', 'name', 'email_id', 'mobile_no']
         extra_kwargs = USER_DETAILS_KWARGS
 
     def create(self, validated_data):
@@ -285,8 +322,12 @@ class UserDetailsSerializerFromParent(serializers.ModelSerializer):
 
     @staticmethod
     def _get_children(obj):
-        serializer = UserDetailsSerializer(UserDetails.objects.get(user=obj), many=False)
-        return serializer.data
+        try:
+            serializer = UserDetailsSerializer(UserDetails.objects.get(user=obj), many=False)
+            print(serializer.data)
+            return serializer.data
+        except UserDetails.DoesNotExist as e:
+            return {}
 
     class Meta:
         model = UserModel

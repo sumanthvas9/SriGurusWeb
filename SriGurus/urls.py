@@ -19,10 +19,11 @@ from django.contrib import admin
 from django.urls import path, include, re_path
 
 urlpatterns = [
-                  path(r'admin/', admin.site.urls),
-                  path('auth/', include("AuthApp.urls", namespace="authentication")),
-                  path('api/', include("AuthAppApi.urls", namespace="authentication_api")),
-              ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    path(r'srigurus/admin/', admin.site.urls),
+    path(r'srigurus/auth/', include("AuthApp.urls", namespace="authentication")),
+    path(r'srigurus/api/', include("AuthAppApi.urls", namespace="authentication_api")),
+]
 
 if settings.DEBUG or True:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

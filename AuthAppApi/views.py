@@ -2,6 +2,8 @@ import traceback
 
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.sites.shortcuts import get_current_site
+from django.db import IntegrityError
+from django.shortcuts import redirect
 from django.views.decorators import csrf
 from rest_framework import permissions, status, authentication, viewsets
 from rest_framework.authtoken.models import Token
@@ -12,7 +14,7 @@ from rest_framework.response import Response as restResponse
 from AuthApp.custom.email import EmailHandling
 from AuthApp.models import UserDetails, Categories, ServiceRequest
 from AuthAppApi.serializers import RegisterSerializer, LoginSerializer, UserDetailsSerializer, CategoriesSerializer, ServiceRequestNewSerializer, \
-    ForgotPasswordSerializer, OTPValidationSerializer
+    ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, CustomAPIValidation
 
 UserModel = get_user_model()
 
@@ -95,6 +97,40 @@ def customer_login(request):
         return restResponse({"msg": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@csrf.csrf_exempt
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@parser_classes([JSONParser])
+def customer_social_login(request):
+    uid = request.data.get('uid', None)
+    if uid is None:
+        return restResponse({"msg": 'UID is missing'}, status=status.HTTP_400_BAD_REQUEST)
+    query_set = UserModel.objects.filter(email__iexact=request.data.get('email', 'dummy'))
+    if query_set:
+        query_dict = query_set.values()[0]
+        if request.data['provider_id'].upper() != query_dict['registeredThrough'].upper():
+            return restResponse({"msg": 'User already registered through ' + query_dict['registeredThrough'] + '.'}, status=status.HTTP_302_FOUND)
+        try:
+            token_obj = Token.objects.create(user=query_set[0], key=uid)
+            token_obj.save()
+        except IntegrityError as error:
+            Token.objects.filter(user=query_set[0]).update(key=uid)
+        return restResponse({"msg": "Logged in successfully."}, status=status.HTTP_200_OK)
+    else:
+        register_serializer = RegisterSerializer(data=request.data)
+        request.data['password'] = uid
+        if register_serializer.is_valid():
+            user = register_serializer.save()
+            token_obj = Token.objects.create(user=user, key=uid)
+            token_obj.save()
+            return restResponse({"otp_verified": "Yes", "msg": "Account registered."}, status=status.HTTP_200_OK)
+        else:
+            error_string = error_message_handler(register_serializer.errors)
+            if error_string:
+                return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return restResponse({"msg": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(["POST"])
 @authentication_classes(AUTHENTICATION_CLASSES)
 @permission_classes([permissions.IsAuthenticated])
@@ -120,7 +156,6 @@ def forgot_password(request):
         else:
             return restResponse({"msg": "Password reset successful."}, status=status.HTTP_200_OK)
     else:
-        print(serializer.errors)
         error_string = error_message_handler(serializer.errors)
         if error_string:
             return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -131,14 +166,14 @@ def forgot_password(request):
 @permission_classes([permissions.AllowAny])
 @parser_classes([JSONParser])
 def resend_auth_otp(request):
-    try:
-        print(request.data)
-        email_handling = EmailHandling()
-        email_handling.send_email(email_type=request.data.get('type', "Resend"), user=UserModel.objects.get(), domain=get_current_site(request))
-        return restResponse({"msg": "OTP sent successfully."}, status=status.HTTP_200_OK)
-    except Exception as error:
-        traceback.print_exc()
-        return restResponse({"msg": "Internal server occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    serializer = OTPResendSerializer(data=request.data, domain=get_current_site(request))
+    if serializer.is_valid():
+        serializer.save()
+    else:
+        error_string = error_message_handler(serializer.errors)
+        if error_string:
+            return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return restResponse({"msg": "OTP sent successfully."}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])
@@ -162,6 +197,7 @@ def auth_otp_validation(request):
 @permission_classes([permissions.IsAuthenticated])
 @parser_classes([JSONParser])
 def set_user_info(request):
+    print(request.data)
     request.data['user_id'] = request.user.id
     try:
         user_details = UserDetails.objects.get(user=request.user)
@@ -173,17 +209,38 @@ def set_user_info(request):
         user_details_serializer.save()
         return restResponse({"msg": "Profile updated successfully."}, status=status.HTTP_200_OK)
     else:
+        print(user_details_serializer.errors)
         error_string = error_message_handler(user_details_serializer.errors)
         if error_string:
             return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return restResponse({"msg": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(["GET"])
+@authentication_classes(AUTHENTICATION_CLASSES)
+@permission_classes([permissions.IsAuthenticated])
+@parser_classes([JSONParser])
+def get_user_info(request):
+    try:
+        user_details = UserDetails.objects.get(user=request.user)
+        serializer = UserDetailsSerializer(user_details, many=False)
+    except UserDetails.DoesNotExist as error:
+        serializer = UserDetailsSerializerFromParent(UserModel.objects.get(id=request.user.id), many=False)
+    return restResponse({"msg": "Categories Info", "data": serializer.data}, status=status.HTTP_200_OK)
+    #
+    # if serializer.is_valid():
+    # else:
+    #     print(serializer.errors)
+    #     error_string = error_message_handler(serializer.errors)
+    #     if error_string:
+    #         return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    #     return restResponse({"msg": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class GetUserInfo(viewsets.ModelViewSet):
     authentication_classes = AUTHENTICATION_CLASSES
     permission_classes = (permissions.IsAuthenticated,)
 
-    serializer_class = UserDetailsSerializer
     model = UserDetails
 
     def get_queryset(self):
