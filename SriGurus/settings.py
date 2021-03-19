@@ -107,9 +107,6 @@ DATABASES = {
         'PASSWORD': 'Srigurus@2044',
         'HOST': 'localhost',  # Or an IP Address that your DB is hosted on
         'PORT': '3306',
-        'OPTIONS': {
-            'charset': 'utf8mb4'  # This is the important line
-        }
     }
 }
 

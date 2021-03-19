@@ -27,11 +27,11 @@ class BaseUserAdmin(admin.ModelAdmin):
         ('Important dates', {'fields': ('last_login', 'date_joined')}),
     )
 
-    exclude = ('password',)
-
-    readonly_fields = [
-        'password',
-    ]
+    # exclude = ('password',)
+    #
+    # readonly_fields = [
+    #     'password',
+    # ]
 
     def make_active(self, request, queryset):
         queryset.update(is_active=1)
@@ -100,3 +100,6 @@ class ServiceRequestAdmin(admin.ModelAdmin):
     readonly_fields = [
         'user',
     ]
+
+    def has_add_permission(self, request):
+        return False

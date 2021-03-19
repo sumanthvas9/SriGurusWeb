@@ -2,7 +2,7 @@ from django.contrib.auth.hashers import make_password
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 
-# from AuthApp.managers import UserManager
+from AuthApp.managers import CustomUserManager
 from django.db.models.signals import pre_save
 from django.dispatch import receiver
 
@@ -13,7 +13,7 @@ class BaseUser(AbstractUser):
     otpVerified = models.BooleanField(db_column='otp_verified', verbose_name='OTP Verified', default=False)
     registeredThrough = models.CharField(db_column='registered_through', verbose_name='Registered Through', max_length=50, default="WEB")
 
-    # objects = UserManager()
+    objects = CustomUserManager()
 
     class Meta(object):
         db_table = 'USERS'
@@ -28,10 +28,10 @@ class BaseUser(AbstractUser):
 @receiver(pre_save, sender=BaseUser)
 def base_user_pre_save(sender, instance, *args, **kwargs):
     instance.username = instance.username or instance.email
-    if not instance.password:
-        instance.password = make_password(None)
-    else:
-        instance.password = make_password(instance.password)
+    # if not instance.password:
+    #     instance.password = make_password(None)
+    # else:
+    #     instance.password = make_password(instance.password)
 
 
 class UserDeviceDetails(models.Model):
