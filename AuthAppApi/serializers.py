@@ -62,7 +62,7 @@ class RegisterSerializer(serializers.ModelSerializer):
             if user_model.otpVerified and (reg_through in ['WEB', 'APP']):
                 raise CustomAPIValidation(detail='Account already verified. Please Login.', field="email", status_code=status.HTTP_302_FOUND)
             else:
-                raise CustomAPIValidation(detail='User already registered through ' + reg_through + '. Please Login.', field="email",
+                raise CustomAPIValidation(detail='User already registered through ' + reg_through + '.\nPlease Login.', field="email",
                                           status_code=status.HTTP_302_FOUND)
                 # token, _ = Token.objects.get_or_create(user=user_model)
                 # raise CustomAPIValidation(detail={"sriguru_token": token.key, "otp_verified": "No", "msg": "Please verify your account."},
@@ -73,11 +73,11 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def validate_mobile(value):
-        # try:
-        #     UserModel.objects.get(**{'phoneNumber': value})
-        #     raise CustomAPIValidation(detail='Phone Number already exists.', field="mobile", status_code=status.HTTP_302_FOUND)
-        # except UserModel.DoesNotExist:
-        #     pass
+        try:
+            UserModel.objects.get(**{'phoneNumber': value})
+            raise CustomAPIValidation(detail='Phone Number already exists.', field="mobile", status_code=status.HTTP_302_FOUND)
+        except UserModel.DoesNotExist:
+            pass
         return value
 
     def validate(self, attrs):

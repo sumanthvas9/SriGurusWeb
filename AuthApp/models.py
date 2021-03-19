@@ -84,9 +84,9 @@ EMAIL_TYPE_CHOICES = (
 class EmailDirectory(models.Model):
     user = models.ForeignKey(BaseUser, to_field='id', db_column='user_id', on_delete=models.CASCADE, related_name='user_rel_ced')
     created = models.DateTimeField(db_column='created', auto_now=True)
-    isActive = models.BooleanField(db_column='is_active', default=True)
-    type = models.CharField(db_column='email_type', max_length=25, blank=False, default=None, choices=EMAIL_TYPE_CHOICES)
-    otpCode = models.CharField(db_column='otp_code', max_length=4, blank=False)
+    isActive = models.BooleanField(db_column='is_active', verbose_name="Is Active", default=True)
+    type = models.CharField(db_column='email_type', verbose_name="OTP Type", max_length=25, blank=False, default=None, choices=EMAIL_TYPE_CHOICES)
+    otpCode = models.CharField(db_column='otp_code', verbose_name="OTP Code", max_length=4, blank=False)
 
     class Meta:
         db_table = 'EMAIL_DIRECTORY'

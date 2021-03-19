@@ -20,6 +20,19 @@ class BaseUserAdmin(admin.ModelAdmin):
     list_display = ('email', 'name', 'phoneNumber', 'otpVerified', 'registeredThrough', 'is_active', 'is_superuser')
     search_fields = ("email__icontains", 'name__icontains', 'phoneNumber__icontains', 'registeredThrough__iexact')
 
+    fieldsets = (
+        (None, {'fields': ('email', 'password')}),
+        ('Personal info', {'fields': ('first_name', 'last_name', 'name', 'phoneNumber', 'otpVerified', 'registeredThrough')}),
+        ('Permissions', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
+        ('Important dates', {'fields': ('last_login', 'date_joined')}),
+    )
+
+    exclude = ('password',)
+
+    readonly_fields = [
+        'password',
+    ]
+
     def make_active(self, request, queryset):
         queryset.update(is_active=1)
         messages.success(request, "Selected record(s) marked as active successfully !!")
@@ -28,15 +41,15 @@ class BaseUserAdmin(admin.ModelAdmin):
         queryset.update(is_active=0)
         messages.success(request, "Selected record(s) marked as inactive successfully !!")
 
-    actions = ['make_active', 'make_inactive', 'filter_english', 'filter_telugu', 'filter_hindi']
+    actions = ['make_active', 'make_inactive']
 
     inlines = [UserDetailsInline]
 
 
-@admin.register(models.UserDeviceDetails)
-class UserDeviceDetailsAdmin(admin.ModelAdmin):
-    list_display = ('user', 'platform', 'model', 'osVersion')
-    search_fields = ("user__email__icontains", 'plateform__icontains', 'model__icontains', 'osVersion__icontains')
+# @admin.register(models.UserDeviceDetails)
+# class UserDeviceDetailsAdmin(admin.ModelAdmin):
+#     list_display = ('user', 'platform', 'model', 'osVersion')
+#     search_fields = ("user__email__icontains", 'plateform__icontains', 'model__icontains', 'osVersion__icontains')
 
 
 @admin.register(models.UserDetails)
@@ -44,11 +57,19 @@ class UserDetailsAdmin(admin.ModelAdmin):
     list_display = ('user', 'dob', 'gender', 'city', 'country', 'zip')
     search_fields = ("user__email__icontains", 'dob__icontains', 'gender__icontains', 'city__icontains', 'country__icontains', 'zip__icontains')
 
+    readonly_fields = [
+        'user',
+    ]
+
 
 @admin.register(models.EmailDirectory)
 class EmailDirectoryAdmin(admin.ModelAdmin):
     list_display = ('user', 'type', 'otpCode', 'isActive')
     search_fields = ("user__email__icontains", 'type__icontains')
+
+    readonly_fields = [
+        'user',
+    ]
 
 
 @admin.register(models.Categories)
@@ -75,3 +96,7 @@ class ServiceRequestAdmin(admin.ModelAdmin):
     search_fields = (
         "user__icontains", 'name__icontains', 'email__icontains', 'phoneNumber__icontains', 'message__icontains', 'reply__icontains',
         'status_icontains')
+
+    readonly_fields = [
+        'user',
+    ]

@@ -197,7 +197,6 @@ def auth_otp_validation(request):
 @permission_classes([permissions.IsAuthenticated])
 @parser_classes([JSONParser])
 def set_user_info(request):
-    print(request.data)
     request.data['user_id'] = request.user.id
     try:
         user_details = UserDetails.objects.get(user=request.user)
@@ -253,7 +252,6 @@ class GetUserInfo(viewsets.ModelViewSet):
 def get_categories_info(request):
     queryset = Categories.objects.filter(isActive=True)
     serializer = CategoriesSerializer(queryset, many=True)
-    print(serializer.data)
     return restResponse({"msg": "Categories Info", "data": serializer.data}, status=status.HTTP_200_OK)
 
 
