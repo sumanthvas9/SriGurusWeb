@@ -15,7 +15,7 @@ class RegistrationEmailThread(threading.Thread):
 
     def run(self):
         if self.email_category == 1:
-            mail_subject = 'Passcode Verification'
+            mail_subject = 'OTP Verification'
             message = render_to_string('confirm_email_token.html', {
                 'user': self.user,
                 'domain': self.domain,

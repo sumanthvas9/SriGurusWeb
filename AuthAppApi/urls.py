@@ -38,5 +38,5 @@ urlpatterns = [
     path(r"categories", views.get_categories_info, name="api_categories"),
     path(r"new_request", views.create_service_request, name="api_create_service_request"),
     path(r"my_requests", views.get_submitted_requests, name="api_create_service_request"),
-
+    path(r"new_form_request", views.create_service_request_with_form, name="api_create_service_request_with_form"),
 ]

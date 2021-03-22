@@ -3,7 +3,6 @@ import traceback
 from django.contrib.auth import get_user_model, authenticate
 from django.contrib.sites.shortcuts import get_current_site
 from django.db import IntegrityError
-from django.shortcuts import redirect
 from django.views.decorators import csrf
 from rest_framework import permissions, status, authentication, viewsets
 from rest_framework.authtoken.models import Token
@@ -13,8 +12,8 @@ from rest_framework.response import Response as restResponse
 
 from AuthApp.custom.email import EmailHandling
 from AuthApp.models import UserDetails, Categories, ServiceRequest
-from AuthAppApi.serializers import RegisterSerializer, LoginSerializer, UserDetailsSerializer, CategoriesSerializer, ServiceRequestNewSerializer, \
-    ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, CustomAPIValidation
+from AuthAppApi.serializers import RegisterSerializer, LoginSerializer, UserDetailsSerializer, CategoriesSerializer, ServiceRequestSerializer, \
+    ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, RepairedBuildingInfoSerializer
 
 UserModel = get_user_model()
 
@@ -25,12 +24,19 @@ AUTHENTICATION_CLASSES = [authentication.TokenAuthentication,
 
 def error_message_handler(dict_data):
     errors = []
-    for key, value in dict_data.items():
-        res_list = str(value[0]).strip('][').split(', ')
-        for res_ind in res_list:
-            errors.append(res_ind)
+
+    def error_message_handler_internal(dict_data_internal):
+        for key, value in dict_data_internal.items():
+            if type(value) is dict:
+                error_message_handler_internal(value)
+            elif type(value) is list:
+                result = str(value[0]).strip('][').split(', ')
+                for res_ind in result:
+                    errors.append(res_ind)
+
+    error_message_handler_internal(dict_data)
     if errors:
-        return errors[0] + format("\n".join(errors[1:]))
+        return format("\n".join(errors[0:]))
     return None
 
 
@@ -220,12 +226,13 @@ def set_user_info(request):
 @permission_classes([permissions.IsAuthenticated])
 @parser_classes([JSONParser])
 def get_user_info(request):
+    print(request.user.id)
     try:
         user_details = UserDetails.objects.get(user=request.user)
         serializer = UserDetailsSerializer(user_details, many=False)
     except UserDetails.DoesNotExist as error:
         serializer = UserDetailsSerializerFromParent(UserModel.objects.get(id=request.user.id), many=False)
-    return restResponse({"msg": "Categories Info", "data": serializer.data}, status=status.HTTP_200_OK)
+    return restResponse({"msg": "User Info", "data": serializer.data}, status=status.HTTP_200_OK)
     #
     # if serializer.is_valid():
     # else:
@@ -261,7 +268,7 @@ def get_categories_info(request):
 @parser_classes([JSONParser])
 def create_service_request(request):
     request.data['user_id'] = request.user.id
-    serializer = ServiceRequestNewSerializer(data=request.data)
+    serializer = ServiceRequestSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
         return restResponse({"msg": "Request created successfully"}, status=status.HTTP_200_OK)
@@ -284,22 +291,29 @@ def get_submitted_requests(request):
     for key, value in main_dict.items():
         date_distinct_list = value.values('created').distinct()
         ind_date_data_list = []
-        for date_list_ind in date_distinct_list:
-            data_dict = {'Date': date_list_ind['created']}
-            ind_date_list = value.filter(created=date_list_ind['created'])
-            serializer = ServiceRequestNewSerializer(ind_date_list, many=True)
+        for date_list_dict in date_distinct_list:
+            data_dict = {'Date': date_list_dict['created']}
+            ind_date_list = value.filter(created=date_list_dict['created'])
+            serializer = ServiceRequestSerializer(ind_date_list, many=True)
             data_dict["Requests"] = serializer.data
             ind_date_data_list.append(data_dict)
         result_dict[key] = ind_date_data_list
 
     return restResponse({"msg": "Request created successfully", "data": result_dict}, status=status.HTTP_200_OK)
 
-# class CreateUserView(CreateAPIView):
-#     model = get_user_model()
-#     permission_classes = [s
-#         permissions.AllowAny
-#     ]
-#     parser_classes = [
-#         JSONParser
-#     ]
-#     serializer_class = RegisterSerializer
+
+@api_view(["POST"])
+@authentication_classes(AUTHENTICATION_CLASSES)
+@permission_classes([permissions.IsAuthenticated])
+@parser_classes([JSONParser])
+def create_service_request_with_form(request):
+    request.data['user_id'] = request.user.id
+    serializer = RepairedBuildingInfoSerializer(data=request.data)
+    if serializer.is_valid():
+        serializer.save()
+        return restResponse({"msg": "Request created successfully"}, status=status.HTTP_200_OK)
+    else:
+        error_string = error_message_handler(serializer.errors)
+        if error_string:
+            return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return restResponse({"msg": "Internal Server Error"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

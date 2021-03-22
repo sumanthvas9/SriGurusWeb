@@ -154,3 +154,64 @@ class ServiceRequest(models.Model):
 
     def __str__(self):
         return self.user.email
+
+
+class BuildingAddress(models.Model):
+    plot = models.CharField(db_column='ba_plot', max_length=150, blank=False, null=False)
+    street = models.CharField(db_column='ba_street', max_length=150, blank=False, null=False)
+    landmark = models.CharField(db_column='ba_landmark', max_length=150, blank=False, null=False)
+    city = models.CharField(db_column='ba_city', max_length=150, blank=False, null=False)
+    state = models.CharField(db_column='ba_state', max_length=150, blank=False, null=False)
+    pin = models.CharField(db_column='ba_pin', max_length=150, blank=False, null=False)
+    mobile = models.CharField(db_column='ba_mobile', max_length=150, blank=False, null=False)
+
+    class Meta:
+        db_table = 'Building_Address'
+        verbose_name = 'Building Address'
+        verbose_name_plural = 'Building Address'
+
+    def __str__(self):
+        return self.id
+
+
+class BuildingInfo(models.Model):
+    floor = models.CharField(db_column='bi_floor', max_length=150, blank=False, null=False)
+    constructionYear = models.CharField(db_column='construction_year', max_length=150, blank=False, null=False)
+    damageYear = models.CharField(db_column='damage_year', max_length=150, blank=False, null=False)
+    anyRepair = models.BooleanField(db_column='any_repair', verbose_name='Is Active', default=False)
+    repairYear = models.CharField(db_column='repair_year', max_length=150, blank=False, null=False)
+    roofRepair = models.BooleanField(db_column='roof_repair', verbose_name='Is Active', default=False)
+    crackRepair = models.BooleanField(db_column='crack_repair', verbose_name='Is Active', default=False)
+    washroomRepair = models.BooleanField(db_column='washroom_repair', verbose_name='Is Active', default=False)
+    wallRepair = models.BooleanField(db_column='wall_repair', verbose_name='Is Active', default=False)
+    flooringRepair = models.BooleanField(db_column='flooring_repair', verbose_name='Is Active', default=False)
+
+    class Meta:
+        db_table = 'Building_Info'
+        verbose_name = 'Building Info'
+        verbose_name_plural = 'Building Info'
+
+    def __str__(self):
+        return self.id
+
+
+REPAIRED_BUILDING_TYPE = (
+    ("Independent Houses", "Independent Houses"),
+    ("Appartment/Flats", "Appartment/Flats"),
+    ("Individual", "Individual"),
+    ("Underground Cellar", "Underground Cellar"),
+    ("Shopping Complex", "Shopping Complex"),
+    ("Commercial Complex", "Commercial Complex"),
+    ("Fire Damage Building", "Fire Damage Building"),
+    ("Government Building", "Government Building"),
+)
+
+
+class RepairedBuildingInfo(models.Model):
+    serviceRequest = models.OneToOneField(ServiceRequest, to_field='id', db_column='service_request', on_delete=models.CASCADE,
+                                          related_name='repair_build_sr')
+    buildingAddress = models.OneToOneField(ServiceRequest, to_field='id', db_column='building_address', on_delete=models.CASCADE,
+                                           related_name='repair_build_build_addr')
+    buildingInfo = models.OneToOneField(ServiceRequest, to_field='id', db_column='building_info', on_delete=models.CASCADE,
+                                        related_name='repair_info_build_addr')
+    buildingType = models.CharField(db_column='building_type', max_length=150, blank=False, null=False, choices=REPAIRED_BUILDING_TYPE)

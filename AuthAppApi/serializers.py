@@ -4,7 +4,8 @@ from django.contrib.auth import get_user_model, authenticate
 from rest_framework.exceptions import APIException
 
 from AuthApp.custom.email import EmailHandling
-from AuthApp.models import EmailDirectory, EMAIL_TYPE_CHOICES, UserDetails, Categories, ServiceRequest
+from AuthApp.models import EmailDirectory, EMAIL_TYPE_CHOICES, UserDetails, Categories, ServiceRequest, BuildingAddress, BuildingInfo, \
+    RepairedBuildingInfo
 
 UserModel = get_user_model()
 
@@ -324,7 +325,6 @@ class UserDetailsSerializerFromParent(serializers.ModelSerializer):
     def _get_children(obj):
         try:
             serializer = UserDetailsSerializer(UserDetails.objects.get(user=obj), many=False)
-            print(serializer.data)
             return serializer.data
         except UserDetails.DoesNotExist as e:
             return {}
@@ -353,7 +353,7 @@ class CategoriesSerializer(serializers.ModelSerializer):
         }
 
 
-class ServiceRequestNewSerializer(serializers.ModelSerializer):
+class ServiceRequestSerializer(serializers.ModelSerializer):
     user_obj = UserModel.objects.all()
     user_id = serializers.PrimaryKeyRelatedField(queryset=user_obj, source='user.id')
 
@@ -368,20 +368,72 @@ class ServiceRequestNewSerializer(serializers.ModelSerializer):
         }
 
     def create(self, validated_data):
+        user = validated_data.pop('user')
         service_request = ServiceRequest.objects.create(
-            user=validated_data['user']['id'],
-            email=validated_data.get('email'),
-            phoneNumber=validated_data.get('phoneNumber'),
-            message=validated_data.get('message'),
-            locationType=validated_data.get('locationType'),
-            address=validated_data.get('address'),
-            city=validated_data.get('city'),
-            state=validated_data.get('state'),
-            country=validated_data.get('country'),
-            zip=validated_data.get('zip'),
+            user=user['id'],
+            **validated_data,
         )
         service_request.save()
         return service_request
 
     def update(self, instance, validated_data):
         pass
+
+
+class BuildingAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BuildingAddress
+        fields = ['plot', 'street', 'landmark', 'city', 'state', 'pin', 'mobile']
+        extra_kwargs = {
+            'plot': {'error_messages': {'blank': "Plot is mandatory.", 'required': "Plot is required."}},
+            'street': {'error_messages': {'blank': "Street is mandatory.", 'required': "Street is required."}},
+            'landmark': {'error_messages': {'blank': "Landmark is mandatory.", 'required': "Landmark is required."}},
+            'city': {'error_messages': {'blank': "City is mandatory.", 'required': "City is required."}},
+            'state': {'error_messages': {'blank': "State is mandatory.", 'required': "State is required."}},
+            'pin': {'error_messages': {'blank': "Pin is mandatory.", 'required': "Pin is required."}},
+            'mobile': {'error_messages': {'blank': "Mobile is mandatory.", 'required': "Mobile is required."}},
+        }
+
+    def create(self, validated_data):
+        building_address = BuildingAddress.objects.create(**validated_data)
+        return building_address
+
+    def update(self, instance, validated_data):
+        pass
+
+
+class BuildingInfoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BuildingInfo
+        fields = ['floor', 'constructionYear', 'damageYear', 'anyRepair', 'repairYear', 'roofRepair', 'crackRepair', 'washroomRepair', 'wallRepair',
+                  'flooringRepair']
+        extra_kwargs = {
+            'floor': {'error_messages': {'blank': "Floor is mandatory.", 'required': "Floor is required."}},
+            'constructionYear': {'error_messages': {'blank': "Construction Year is mandatory.", 'required': "Construction Year is required."}},
+            'damageYear': {'error_messages': {'blank': "Damage Year is mandatory.", 'required': "Damage Year is required."}},
+            'anyRepair': {'error_messages': {'blank': "Any Repair is mandatory.", 'required': "Any Repair is required."}},
+            'repairYear': {'error_messages': {'blank': "Repair Year is mandatory.", 'required': "Repair Year is required."}},
+            'roofRepair': {'error_messages': {'blank': "Roof Repair is mandatory.", 'required': "Roof Repair is required."}},
+            'crackRepair': {'error_messages': {'blank': "Crack Repair is mandatory.", 'required': "Crack Repair is required."}},
+            'washroomRepair': {'error_messages': {'blank': "Washroom Repair is mandatory.", 'required': "Washroom Repair is required."}},
+            'wallRepair': {'error_messages': {'blank': "Wall Repair is mandatory.", 'required': "Wall Repair is required."}},
+            'flooringRepair': {'error_messages': {'blank': "Flooring Repair is mandatory.", 'required': "Flooring Repair is required."}},
+        }
+
+    def create(self, validated_data):
+        building_address = BuildingAddress.objects.create(**validated_data)
+        return building_address
+
+    def update(self, instance, validated_data):
+        pass
+
+
+class RepairedBuildingInfoSerializer(serializers.ModelSerializer):
+    address = BuildingAddressSerializer(many=False, source="buildingAddress")
+    building_info = BuildingInfoSerializer(many=False, source="buildingInfo")
+    service_request = BuildingInfoSerializer(many=False, source="serviceRequest")
+    building_type = serializers.CharField(source="buildingType")
+
+    class Meta:
+        model = RepairedBuildingInfo
+        fields = ['service_request', 'building_type', 'address', 'building_info']
