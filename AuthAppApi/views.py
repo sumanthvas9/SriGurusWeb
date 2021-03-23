@@ -307,7 +307,9 @@ def get_submitted_requests(request):
 @permission_classes([permissions.IsAuthenticated])
 @parser_classes([JSONParser])
 def create_service_request_with_form(request):
+    print(request.data)
     request.data['user_id'] = request.user.id
+    request.data['service_request']['user_id'] = request.user.id
     serializer = RepairedBuildingInfoSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()

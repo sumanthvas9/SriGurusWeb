@@ -5,7 +5,7 @@ from rest_framework.exceptions import APIException
 
 from AuthApp.custom.email import EmailHandling
 from AuthApp.models import EmailDirectory, EMAIL_TYPE_CHOICES, UserDetails, Categories, ServiceRequest, BuildingAddress, BuildingInfo, \
-    RepairedBuildingInfo
+    RepairedBuildingInfo, REPAIRED_BUILDING_TYPE, BUILDING_INFO_FLOOR
 
 UserModel = get_user_model()
 
@@ -361,9 +361,10 @@ class ServiceRequestSerializer(serializers.ModelSerializer):
         model = ServiceRequest
         fields = ['name', 'email_id', 'phone', 'message', 'reply', 'location_type', 'address', 'city', 'state', 'country', 'zip', 'user_id']
         extra_kwargs = {
-            'email_id': {'source': 'email', 'required': True, 'error_messages': {'blank': "Email is mandatory.", 'required': "Email is mandatory."}},
+            'email_id': {'source': 'email', 'required': True, 'error_messages': {'blank': "Email is mandatory.", 'required': "Email is Required."}},
+            'address': {'error_messages': {'blank': "Address is mandatory.", 'required': "Address is Required."}},
             'phone': {'source': 'phoneNumber'},
-            'location_type': {'source': 'locationType', 'required': True,
+            'location_type': {'source': 'locationType',
                               'error_messages': {'blank': "Location Type is mandatory.", 'required': "Location Type is mandatory."}}
         }
 
@@ -403,37 +404,63 @@ class BuildingAddressSerializer(serializers.ModelSerializer):
 
 
 class BuildingInfoSerializer(serializers.ModelSerializer):
+    floor = serializers.ChoiceField(choices=BUILDING_INFO_FLOOR)
+
     class Meta:
         model = BuildingInfo
-        fields = ['floor', 'constructionYear', 'damageYear', 'anyRepair', 'repairYear', 'roofRepair', 'crackRepair', 'washroomRepair', 'wallRepair',
-                  'flooringRepair']
+        fields = ['floor', 'construction_year', 'damage_year', 'any_repair', 'repair_year', 'roof_repair', 'crack_repair', 'washroom_repair',
+                  'wall_repair', 'flooring_repair']
         extra_kwargs = {
             'floor': {'error_messages': {'blank': "Floor is mandatory.", 'required': "Floor is required."}},
-            'constructionYear': {'error_messages': {'blank': "Construction Year is mandatory.", 'required': "Construction Year is required."}},
-            'damageYear': {'error_messages': {'blank': "Damage Year is mandatory.", 'required': "Damage Year is required."}},
-            'anyRepair': {'error_messages': {'blank': "Any Repair is mandatory.", 'required': "Any Repair is required."}},
-            'repairYear': {'error_messages': {'blank': "Repair Year is mandatory.", 'required': "Repair Year is required."}},
-            'roofRepair': {'error_messages': {'blank': "Roof Repair is mandatory.", 'required': "Roof Repair is required."}},
-            'crackRepair': {'error_messages': {'blank': "Crack Repair is mandatory.", 'required': "Crack Repair is required."}},
-            'washroomRepair': {'error_messages': {'blank': "Washroom Repair is mandatory.", 'required': "Washroom Repair is required."}},
-            'wallRepair': {'error_messages': {'blank': "Wall Repair is mandatory.", 'required': "Wall Repair is required."}},
-            'flooringRepair': {'error_messages': {'blank': "Flooring Repair is mandatory.", 'required': "Flooring Repair is required."}},
+            'construction_year': {'source': 'constructionYear',
+                                  'error_messages': {'blank': "Construction Year is mandatory.", 'required': "Construction Year is required."}},
+            'damage_year': {'source': 'damageYear', 'error_messages': {'blank': "Damage Year is mandatory.", 'required': "Damage Year is required."}},
+            'any_repair': {'source': 'anyRepair', 'error_messages': {'blank': "Any Repair is mandatory.", 'required': "Any Repair is required."}},
+            'repair_year': {'source': 'repairYear', 'error_messages': {'blank': "Repair Year is mandatory.", 'required': "Repair Year is required."}},
+            'roof_repair': {'source': 'roofRepair', 'error_messages': {'blank': "Roof Repair is mandatory.", 'required': "Roof Repair is required."}},
+            'crack_repair': {'source': 'crackRepair',
+                             'error_messages': {'blank': "Crack Repair is mandatory.", 'required': "Crack Repair is required."}},
+            'washroom_repair': {'source': 'washroomRepair',
+                                'error_messages': {'blank': "Washroom Repair is mandatory.", 'required': "Washroom Repair is required."}},
+            'wall_repair': {'source': 'wallRepair', 'error_messages': {'blank': "Wall Repair is mandatory.", 'required': "Wall Repair is required."}},
+            'flooring_repair': {'source': 'flooringRepair',
+                                'error_messages': {'blank': "Flooring Repair is mandatory.", 'required': "Flooring Repair is required."}},
         }
 
     def create(self, validated_data):
-        building_address = BuildingAddress.objects.create(**validated_data)
-        return building_address
+        building_info = BuildingInfo.objects.create(**validated_data)
+        return building_info
 
     def update(self, instance, validated_data):
         pass
 
 
 class RepairedBuildingInfoSerializer(serializers.ModelSerializer):
-    address = BuildingAddressSerializer(many=False, source="buildingAddress")
+    user_obj = UserModel.objects.all()
+    user_id = serializers.PrimaryKeyRelatedField(queryset=user_obj, source='user.id')
+
+    building_address = BuildingAddressSerializer(many=False, source="buildingAddress")
     building_info = BuildingInfoSerializer(many=False, source="buildingInfo")
-    service_request = BuildingInfoSerializer(many=False, source="serviceRequest")
-    building_type = serializers.CharField(source="buildingType")
+    service_request = ServiceRequestSerializer(many=False, source="serviceRequest")
+    building_type = serializers.ChoiceField(source="buildingType", choices=REPAIRED_BUILDING_TYPE,
+                                            error_messages={'invalid_choice': 'Please enter valid value for Building Type.'})
 
     class Meta:
         model = RepairedBuildingInfo
-        fields = ['service_request', 'building_type', 'address', 'building_info']
+        fields = ['service_request', 'building_type', 'building_address', 'building_info', 'user_id']
+
+    def create(self, validated_data):
+        user = validated_data.get('serviceRequest').pop('user')
+
+        sr = ServiceRequest.objects.create(user=user['id'], **validated_data.get('serviceRequest'))
+        bi = BuildingInfo.objects.create(**validated_data.get('buildingInfo'), serviceRequest=sr)
+        ba = BuildingAddress.objects.create(**validated_data.get('buildingAddress'), serviceRequest=sr)
+
+        kwargs = {
+            "serviceRequest": sr,
+            "buildingAddress": ba,
+            "buildingInfo": bi,
+            "buildingType": validated_data.get('buildingType')
+        }
+        required_building_info = RepairedBuildingInfo.objects.create(**kwargs)
+        return required_building_info
