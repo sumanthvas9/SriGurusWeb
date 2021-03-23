@@ -435,12 +435,12 @@ class BuildingInfoSerializer(serializers.ModelSerializer):
         pass
 
 
-class RepairedBuildingInfoSerializer(serializers.ModelSerializer):
+class ServiceRequestWithFormSerializer(serializers.ModelSerializer):
     user_obj = UserModel.objects.all()
     user_id = serializers.PrimaryKeyRelatedField(queryset=user_obj, source='user.id')
 
     building_address = BuildingAddressSerializer(many=False, source="buildingAddress")
-    building_info = BuildingInfoSerializer(many=False, source="buildingInfo")
+    building_info = BuildingInfoSerializer(required=False, many=False, source="buildingInfo")
     service_request = ServiceRequestSerializer(many=False, source="serviceRequest")
     building_type = serializers.ChoiceField(source="buildingType", choices=REPAIRED_BUILDING_TYPE,
                                             error_messages={'invalid_choice': 'Please enter valid value for Building Type.'})
@@ -449,18 +449,29 @@ class RepairedBuildingInfoSerializer(serializers.ModelSerializer):
         model = RepairedBuildingInfo
         fields = ['service_request', 'building_type', 'building_address', 'building_info', 'user_id']
 
+    def validate(self, attrs):
+        validated_data = super(ServiceRequestWithFormSerializer, self).validate(attrs=attrs)
+        if validated_data.get('buildingType') in ['Independent Houses', 'Villa/Row Houses', 'Appartment/Flats']:
+            if not validated_data.get('buildingInfo'):
+                raise CustomAPIValidation(detail='Building Information is mandatory for selected building type.', field="email",
+                                          status_code=status.HTTP_406_NOT_ACCEPTABLE)
+        return validated_data
+
     def create(self, validated_data):
         user = validated_data.get('serviceRequest').pop('user')
 
         sr = ServiceRequest.objects.create(user=user['id'], **validated_data.get('serviceRequest'))
-        bi = BuildingInfo.objects.create(**validated_data.get('buildingInfo'), serviceRequest=sr)
         ba = BuildingAddress.objects.create(**validated_data.get('buildingAddress'), serviceRequest=sr)
 
         kwargs = {
             "serviceRequest": sr,
             "buildingAddress": ba,
-            "buildingInfo": bi,
             "buildingType": validated_data.get('buildingType')
         }
+
+        if validated_data.get('buildingType') in ['Independent Houses', 'Villa/Row Houses', 'Appartment/Flats']:
+            bi = BuildingInfo.objects.create(**validated_data.get('buildingInfo'), serviceRequest=sr)
+            kwargs['buildingInfo'] = bi
+
         required_building_info = RepairedBuildingInfo.objects.create(**kwargs)
         return required_building_info

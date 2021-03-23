@@ -13,7 +13,7 @@ from rest_framework.response import Response as restResponse
 from AuthApp.custom.email import EmailHandling
 from AuthApp.models import UserDetails, Categories, ServiceRequest
 from AuthAppApi.serializers import RegisterSerializer, LoginSerializer, UserDetailsSerializer, CategoriesSerializer, ServiceRequestSerializer, \
-    ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, RepairedBuildingInfoSerializer
+    ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, ServiceRequestWithFormSerializer
 
 UserModel = get_user_model()
 
@@ -307,10 +307,9 @@ def get_submitted_requests(request):
 @permission_classes([permissions.IsAuthenticated])
 @parser_classes([JSONParser])
 def create_service_request_with_form(request):
-    print(request.data)
     request.data['user_id'] = request.user.id
     request.data['service_request']['user_id'] = request.user.id
-    serializer = RepairedBuildingInfoSerializer(data=request.data)
+    serializer = ServiceRequestWithFormSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save()
         return restResponse({"msg": "Request created successfully"}, status=status.HTTP_200_OK)
