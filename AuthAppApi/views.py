@@ -10,10 +10,11 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from rest_framework.parsers import JSONParser
 from rest_framework.response import Response as restResponse
 
-from AuthApp.custom.email import EmailHandling
+from AuthApp.custom.notify import EmailHandling, SmsHandling
 from AuthApp.models import UserDetails, Categories, ServiceRequest
 from AuthAppApi.serializers import RegisterSerializer, LoginSerializer, UserDetailsSerializer, CategoriesSerializer, ServiceRequestSerializer, \
-    ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, ServiceRequestWithFormSerializer
+    ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, ServiceRequestWithFormSerializer, \
+    SmsSerializer
 
 UserModel = get_user_model()
 
@@ -74,12 +75,30 @@ def token_login(request):
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 @parser_classes([JSONParser])
-def customer_registration(request):
+def customer_registration_email(request):
     register_serializer = RegisterSerializer(data=request.data)
     if register_serializer.is_valid():
         user = register_serializer.save()
         email_handling = EmailHandling()
         email_handling.send_email(email_type="Registration", user=user, domain=get_current_site(request))
+        return restResponse({"otp_verified": "No", "msg": "Please verify your account."}, status=status.HTTP_200_OK)
+    else:
+        error_string = error_message_handler(register_serializer.errors)
+        if error_string:
+            return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return restResponse({"msg": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf.csrf_exempt
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@parser_classes([JSONParser])
+def customer_registration_sms(request):
+    register_serializer = RegisterSerializer(data=request.data)
+    if register_serializer.is_valid():
+        user = register_serializer.save()
+        sms_handling = SmsHandling()
+        sms_handling.send_sms(email_type="Registration", user=user, domain=get_current_site(request))
         return restResponse({"otp_verified": "No", "msg": "Please verify your account."}, status=status.HTTP_200_OK)
     else:
         error_string = error_message_handler(register_serializer.errors)
@@ -185,7 +204,7 @@ def resend_auth_otp(request):
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 @parser_classes([JSONParser])
-def auth_otp_validation(request):
+def auth_email_otp_validation(request):
     serializer = OTPValidationSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
@@ -196,6 +215,13 @@ def auth_otp_validation(request):
         if error_string:
             return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         return restResponse({"msg": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@parser_classes([JSONParser])
+def auth_sms_otp_validation(request):
+    return auth_email_otp_validation(request)
 
 
 @api_view(["POST"])

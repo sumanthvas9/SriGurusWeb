@@ -128,6 +128,41 @@ REQUEST_LOCATION_TYPE = (
     ("manual", "manual")
 )
 
+COUNTRY = (
+    ('India', 'India'),
+)
+
+STATES = (
+    ('Andhra Pradesh', 'Andhra Pradesh'),
+    ('Arunachal Pradesh', 'Arunachal Pradesh'),
+    ('Assam', 'Assam'),
+    ('Bihar', 'Bihar'),
+    ('Chhattisgarh', 'Chhattisgarh'),
+    ('Goa', 'Goa'),
+    ('Gujarat', 'Gujarat'),
+    ('Haryana', 'Haryana'),
+    ('Himachal Pradesh', 'Himachal Pradesh'),
+    ('Jharkhand', 'Jharkhand'),
+    ('Karnataka', 'Karnataka'),
+    ('Kerala', 'Kerala'),
+    ('Madhya Pradesh', 'Madhya Pradesh'),
+    ('Maharashtra', 'Maharashtra'),
+    ('Manipur', 'Manipur'),
+    ('Meghalaya', 'Meghalaya'),
+    ('Mizoram', 'Mizoram'),
+    ('Nagaland', 'Nagaland'),
+    ('Odisha', 'Odisha'),
+    ('Punjab', 'Punjab'),
+    ('Rajasthan', 'Rajasthan'),
+    ('Sikkim', 'Sikkim'),
+    ('Tamil Nadu', 'Tamil Nadu'),
+    ('Telangana', 'Telangana'),
+    ('Tripura', 'Tripura'),
+    ('Uttar Pradesh', 'Uttar Pradesh'),
+    ('Uttarakhand', 'Uttarakhand'),
+    ('West Bengal', 'West Bengal'),
+)
+
 
 class ServiceRequest(models.Model):
     user = models.ForeignKey(BaseUser, to_field='id', db_column='user_id', on_delete=models.CASCADE, related_name='service_request')
@@ -141,8 +176,8 @@ class ServiceRequest(models.Model):
                                     choices=REQUEST_LOCATION_TYPE)
     address = models.CharField(db_column='address', max_length=150, blank=True, null=True, default=None)
     city = models.CharField(db_column='city', max_length=50, blank=True, null=True, default=None)
-    state = models.CharField(db_column='state', max_length=50, blank=True, null=True, default=None)
-    country = models.CharField(db_column='country', max_length=50, blank=True, null=True, default=None)
+    state = models.CharField(db_column='state', max_length=50, blank=True, null=True, default=None, choices=STATES)
+    country = models.CharField(db_column='country', max_length=50, blank=True, null=True, default=None, choices=COUNTRY)
     zip = models.CharField(db_column='zip', max_length=10, blank=True, null=True, default=None)
     created = models.DateField(db_column='created', auto_now=True)
     updated = models.DateTimeField(db_column='updated', auto_now_add=True)
@@ -151,6 +186,30 @@ class ServiceRequest(models.Model):
         db_table = 'SERVICE_REQUEST'
         verbose_name = 'Service Request'
         verbose_name_plural = 'Service Requests'
+
+    def __str__(self):
+        return self.user.email
+
+
+PAYMENT_STATUS = (
+    ('Cancelled', 'Cancelled'),
+    ('Pending', 'Pending'),
+    ('Completed', 'Completed'),
+    ('Rejected', 'Rejected'),
+)
+
+
+class PaymentInfo(models.Model):
+    user = models.ForeignKey(BaseUser, to_field='id', db_column='user_id', on_delete=models.CASCADE, related_name='payment_info_user')
+    serviceRequest = models.OneToOneField(ServiceRequest, to_field='id', db_column='service_request', verbose_name="Service Request",
+                                          on_delete=models.CASCADE, related_name='payment_info_sr')
+    paymentMode = models.CharField(db_column='payment_mode', max_length=150, blank=False, null=False)
+    paymentStatus = models.CharField(db_column='payment_status', max_length=150, blank=False, null=False, choices=PAYMENT_STATUS),
+
+    class Meta:
+        db_table = 'PAYMENT_INFO'
+        verbose_name = 'Payment Info'
+        verbose_name_plural = 'Payment Info'
 
     def __str__(self):
         return self.user.email

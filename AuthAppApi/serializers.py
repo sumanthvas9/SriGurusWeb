@@ -3,7 +3,7 @@ from rest_framework import serializers, status
 from django.contrib.auth import get_user_model, authenticate
 from rest_framework.exceptions import APIException
 
-from AuthApp.custom.email import EmailHandling
+from AuthApp.custom.notify import EmailHandling, SmsHandling
 from AuthApp.models import EmailDirectory, EMAIL_TYPE_CHOICES, UserDetails, Categories, ServiceRequest, BuildingAddress, BuildingInfo, \
     RepairedBuildingInfo, REPAIRED_BUILDING_TYPE, BUILDING_INFO_FLOOR
 
@@ -33,6 +33,32 @@ class CustomAPIValidation(APIException):
                 self.detail = {'msg': force_text(self.default_detail)}
         else:
             self.detail = {'msg': force_text(self.default_detail)}
+
+
+class SmsSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=10, required=True,
+                                         error_messages={'blank': "Phone number can not be empty.", 'required': 'Phone number is required.'})
+    otp = serializers.CharField(max_length=4, required=True,
+                                error_messages={'blank': "Otp can not be empty.", 'required': 'Otp is required.'})
+
+    def __init__(self, *args, **kwargs):
+        super(SmsSerializer, self).__init__(*args, **kwargs)
+
+    def validate(self, attrs):
+        validated_data = super(SmsSerializer, self).validate(attrs=attrs)
+        sms_handling = SmsHandling()
+        sms_handling.validate_otp(validated_data.get('phone_number'), validated_data.get('otp'))
+        print(validated_data)
+        return validated_data
+
+    def update(self, instance, validated_data):
+        pass
+
+    def create(self, validated_data):
+        user = UserModel.objects.get(phoneNumber=validated_data.get('phone_number'))
+        user.otpVerified = True
+        user.save()
+        return user
 
 
 class RegisterSerializer(serializers.ModelSerializer):
