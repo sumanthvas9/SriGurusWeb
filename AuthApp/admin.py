@@ -68,7 +68,7 @@ class UserDetailsAdmin(admin.ModelAdmin):
 
 @admin.register(models.EmailDirectory)
 class EmailDirectoryAdmin(admin.ModelAdmin):
-    list_display = ('user', 'type', 'otpCode', 'isActive')
+    list_display = ('user', 'type', 'otpCode', 'isActive', 'created')
     search_fields = ("user__email__icontains", 'type__icontains')
     list_per_page = 25
 

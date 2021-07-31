@@ -1,7 +1,7 @@
 import random
 import string
 
-from authy.api import AuthyApiClient
+# from authy.api import AuthyApiClient
 from django.conf import settings
 from django.http import HttpResponse
 
@@ -12,7 +12,8 @@ from twilio.twiml.messaging_response import MessagingResponse
 from AuthApp.models import EmailDirectory
 from AuthAppApi import tasks
 
-authy_api = AuthyApiClient(settings.TWILIO_AUTH_TOKEN)
+
+# authy_api = AuthyApiClient(settings.TWILIO_AUTH_TOKEN)
 
 
 def get_random_alphanumeric_string(length):
@@ -57,8 +58,9 @@ class SmsHandling:
             client = Client(settings.TWILIO_ACCOUNT_SID, settings.TWILIO_AUTH_TOKEN)
             otp = get_random_numeric_string(4)
             EmailHandling.store_email_entry(user=user, email_type=email_type, otp=otp)
-            message = client.messages.create(from_=settings.TWILIO_NUMBER, to=user.phoneNumber,
-                                             body="Please find otp for your request from {domain}: {otp}".format({"domain": domain, "otp": otp}))
+            print(user.phoneNumber)
+            message = client.messages.create(from_=settings.TWILIO_NUMBER, to="+91" + user.phoneNumber,
+                                             body="Please find otp for your request from {0} : {1}".format(*[domain, otp]))
             print(print(message.sid))
             return r
         except TwilioRestException as ex:
@@ -66,9 +68,9 @@ class SmsHandling:
             return HttpResponse(ex)
 
     def validate_otp(self, phone_number, otp):
-        authy_api.phones.verification_start(
-            phone_number,
-            "+91",
-            via=otp
-        )
+        # authy_api.phones.verification_start(
+        #     phone_number,
+        #     "+91",
+        #     via=otp
+        # )
         return True
