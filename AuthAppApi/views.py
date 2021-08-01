@@ -12,9 +12,9 @@ from rest_framework.response import Response as restResponse
 
 from AuthApp.custom.notify import EmailHandling, SmsHandling
 from AuthApp.models import UserDetails, Categories, ServiceRequest
-from AuthAppApi.serializers import RegisterSerializer, LoginSerializer, UserDetailsSerializer, CategoriesSerializer, ServiceRequestSerializer, \
+from AuthAppApi.serializers import RegisterSerializer, EmailLoginSerializer, UserDetailsSerializer, CategoriesSerializer, ServiceRequestSerializer, \
     ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, ServiceRequestWithFormSerializer, \
-    SmsSerializer
+    SmsSerializer, SmsLoginSerializer
 
 UserModel = get_user_model()
 
@@ -107,12 +107,7 @@ def customer_registration_sms(request):
         return restResponse({"msg": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@csrf.csrf_exempt
-@api_view(["POST"])
-@permission_classes([permissions.AllowAny])
-@parser_classes([JSONParser])
-def customer_login(request):
-    login_serializer = LoginSerializer(domain=get_current_site(request), data=request.data)
+def login_serializer_common(login_serializer):
     if login_serializer.is_valid():
         user = login_serializer.save()
         token, _ = Token.objects.get_or_create(user=user)
@@ -120,6 +115,24 @@ def customer_login(request):
     else:
         print(login_serializer.errors)
         return restResponse({"msg": "Internal server error."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@csrf.csrf_exempt
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@parser_classes([JSONParser])
+def customer_login_email(request):
+    login_serializer = EmailLoginSerializer(domain=get_current_site(request), data=request.data)
+    return login_serializer_common(login_serializer)
+
+
+@csrf.csrf_exempt
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@parser_classes([JSONParser])
+def customer_login_sms(request):
+    login_serializer = SmsLoginSerializer(domain=get_current_site(request), data=request.data)
+    return login_serializer_common(login_serializer)
 
 
 @csrf.csrf_exempt
@@ -190,7 +203,7 @@ def forgot_password(request):
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 @parser_classes([JSONParser])
-def resend_auth_otp(request):
+def resend_auth_otp_email(request):
     serializer = OTPResendSerializer(data=request.data, domain=get_current_site(request))
     if serializer.is_valid():
         serializer.save()
@@ -204,7 +217,22 @@ def resend_auth_otp(request):
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 @parser_classes([JSONParser])
-def auth_email_otp_validation(request):
+def resend_auth_otp_sms(request):
+    serializer = OTPResendSerializer(data=request.data, domain=get_current_site(request))
+    if serializer.is_valid():
+        serializer.save()
+    else:
+        error_string = error_message_handler(serializer.errors)
+        if error_string:
+            return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    return restResponse({"msg": "OTP sent successfully."}, status=status.HTTP_200_OK)
+
+
+@api_view(["POST"])
+@permission_classes([permissions.AllowAny])
+@parser_classes([JSONParser])
+def auth_otp_validation_email(request):
+    print(request.data)
     serializer = OTPValidationSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
@@ -220,8 +248,8 @@ def auth_email_otp_validation(request):
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 @parser_classes([JSONParser])
-def auth_sms_otp_validation(request):
-    return auth_email_otp_validation(request)
+def auth_otp_validation_sms(request):
+    return auth_otp_validation_email(request)
 
 
 @api_view(["POST"])
