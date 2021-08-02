@@ -1,5 +1,6 @@
 import re
 
+from django.contrib.auth.hashers import make_password
 from django.utils.encoding import force_text
 from rest_framework import serializers, status
 from django.contrib.auth import get_user_model, authenticate
@@ -50,7 +51,6 @@ class SmsSerializer(serializers.Serializer):
         validated_data = super(SmsSerializer, self).validate(attrs=attrs)
         sms_handling = SmsHandling()
         sms_handling.validate_otp(validated_data.get('phone_number'), validated_data.get('otp'))
-        print(validated_data)
         return validated_data
 
     def update(self, instance, validated_data):
@@ -169,9 +169,6 @@ class EmailLoginSerializer(serializers.Serializer):
 
 
 class SmsLoginSerializer(EmailLoginSerializer):
-    user_name = serializers.CharField(max_length=255)
-    password = serializers.CharField(max_length=128, write_only=True)
-
     def __init__(self, *args, **kwargs):
         super(SmsLoginSerializer, self).__init__(*args, **kwargs)
 
@@ -187,11 +184,34 @@ class SmsLoginSerializer(EmailLoginSerializer):
         return user_model.email
 
 
+def check_email_phone_sent_in_request(self, value):
+    special_char = re.compile('[@_!#$%^&*()<>?/}{~:]')
+    if special_char.search(value) is not None:
+        self.userModel = UserModel.objects.get(**{'email': value})
+        self.isPhoneNumber = False
+    else:
+        self.userModel = UserModel.objects.get(**{'phoneNumber': value})
+        self.isPhoneNumber = True
+
+
+def send_email_sms_otp(is_phone_number, email_type, user_model, domain):
+    if is_phone_number:
+        sms_handling = SmsHandling()
+        sms_handling.send_sms(email_type=email_type, user=user_model, domain=domain)
+    else:
+        email_handling = EmailHandling()
+        email_handling.send_email(email_type=email_type, user=user_model, domain=domain)
+
+
 class ForgotPasswordSerializer(serializers.ModelSerializer):
     user_obj = UserModel.objects.all()
     type = serializers.ChoiceField(choices=('init', 'submit'))
-    email_id = serializers.EmailField()
+    user_id = serializers.CharField(required=True,
+                                    error_messages={'blank': "User Id can not be empty.", 'required': 'User Id is required.'})
     password = serializers.CharField(required=False, allow_blank=True, allow_null=True)
+
+    userModel = None
+    isPhoneNumber = False
 
     def __init__(self, *args, **kwargs):
         self.domain = kwargs.pop("domain")
@@ -199,9 +219,9 @@ class ForgotPasswordSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EmailDirectory
-        fields = ['email_id', 'type', 'otp', 'password']
+        fields = ['user_id', 'type', 'otp', 'password']
         extra_kwargs = {
-            'email_id': {'required': True, 'error_messages': {'blank': "Email Id is mandatory."}},
+            'user_id': {'source': 'email_id', 'required': True, 'error_messages': {'blank': "Email Id is mandatory."}},
             'type': {'required': True, 'error_messages': {'blank': "Type is mandatory."}},
             'otp': {'source': 'otpCode', 'required': False, 'allow_blank': True, 'allow_null': True},
         }
@@ -210,10 +230,10 @@ class ForgotPasswordSerializer(serializers.ModelSerializer):
         validated_data = super(ForgotPasswordSerializer, self).validate(attrs=attrs)
         fp_type = validated_data.get('type', None)
         try:
-            self.user = UserModel.objects.get(email=validated_data['email_id'])
+            check_email_phone_sent_in_request(self, validated_data['user_id'])
         except UserModel.DoesNotExist:
-            raise CustomAPIValidation(detail="Invalid email id provided", field="password", status_code=status.HTTP_406_NOT_ACCEPTABLE)
-        if self.user.registeredThrough.upper() not in ['WEB', 'APP']:
+            raise CustomAPIValidation(detail="Invalid user id provided", field="password", status_code=status.HTTP_406_NOT_ACCEPTABLE)
+        if self.userModel.registeredThrough.upper() not in ['WEB', 'APP']:
             raise CustomAPIValidation(detail="Forgot password not allowed for accounts registered through social login", field="email_id",
                                       status_code=status.HTTP_403_FORBIDDEN)
         if fp_type == 'init':
@@ -228,7 +248,7 @@ class ForgotPasswordSerializer(serializers.ModelSerializer):
                 error_dict.append("OTP is mandatory")
             if error_dict:
                 raise CustomAPIValidation(detail=str(error_dict), field="password", status_code=status.HTTP_406_NOT_ACCEPTABLE)
-            email_dir_obj = EmailDirectory.objects.filter(user=self.user, isActive=True, type='ForgotPassword')
+            email_dir_obj = EmailDirectory.objects.filter(user=self.userModel, isActive=True, type='ForgotPassword')
             otp_code_query_set = email_dir_obj.values('otpCode')
             if otp_code_query_set and otp_code_query_set[0]['otpCode'] != validated_data.get('otpCode'):
                 error_dict = "Incorrect OTP code"
@@ -239,13 +259,13 @@ class ForgotPasswordSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         fp_type = validated_data.get('type', None)
         if fp_type == 'init':
-            email_handling = EmailHandling()
-            email_handling.send_email(email_type="ForgotPassword", user=self.user, domain=self.domain)
+            send_email_sms_otp(is_phone_number=self.isPhoneNumber, email_type="ForgotPassword", user_model=self.userModel, domain=self.domain)
             return "init"
         else:
-            EmailDirectory.objects.filter(user=self.user, isActive=True, type='ForgotPassword').update(isActive=False)
-            self.user.password = validated_data['password']
-            self.user.save()
+            EmailDirectory.objects.filter(user=self.userModel, isActive=True, type='ForgotPassword').update(isActive=False)
+            self.userModel.password = make_password(validated_data['password'])
+            self.userModel.otpVerified = True
+            self.userModel.save()
             return 'submit'
 
 
@@ -256,19 +276,15 @@ class OTPResendSerializer(serializers.Serializer):
                                    error_messages={'blank': "Type can not be empty.", 'required': 'Type is required.'})
 
     userModel = None
+    isPhoneNumber = False
 
     def __init__(self, *args, **kwargs):
         self.domain = kwargs.pop("domain", "")
         super(OTPResendSerializer, self).__init__(*args, **kwargs)
 
     def validate_user_id(self, value):
-        print(value)
         try:
-            special_char = re.compile('[@_!#$%^&*()<>?/}{~:]')
-            if special_char.search(value) is not None:
-                self.userModel = UserModel.objects.get(**{'email': value})
-            else:
-                self.userModel = UserModel.objects.get(**{'phoneNumber': value})
+            check_email_phone_sent_in_request(self, value)
         except UserModel.DoesNotExist:
             raise CustomAPIValidation(detail="User does not exist.", field="email", status_code=status.HTTP_404_NOT_FOUND)
         return value
@@ -278,8 +294,8 @@ class OTPResendSerializer(serializers.Serializer):
         return validated_data
 
     def create(self, validated_data):
-        email_handling = EmailHandling()
-        email_handling.send_email(email_type=validated_data.get('type', "Resend"), user=self.userModel, domain=self.domain)
+        send_email_sms_otp(is_phone_number=self.isPhoneNumber, email_type=validated_data.get('type', "Resend"), user_model=self.userModel,
+                           domain=self.domain)
         return True
 
     def update(self, instance, validated_data):

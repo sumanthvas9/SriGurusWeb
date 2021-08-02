@@ -218,21 +218,13 @@ def resend_auth_otp_email(request):
 @permission_classes([permissions.AllowAny])
 @parser_classes([JSONParser])
 def resend_auth_otp_sms(request):
-    serializer = OTPResendSerializer(data=request.data, domain=get_current_site(request))
-    if serializer.is_valid():
-        serializer.save()
-    else:
-        error_string = error_message_handler(serializer.errors)
-        if error_string:
-            return restResponse({"msg": error_string}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    return restResponse({"msg": "OTP sent successfully."}, status=status.HTTP_200_OK)
+    return resend_auth_otp_email(request)
 
 
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
 @parser_classes([JSONParser])
 def auth_otp_validation_email(request):
-    print(request.data)
     serializer = OTPValidationSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
