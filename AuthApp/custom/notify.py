@@ -59,9 +59,9 @@ class SmsHandling:
             otp = get_random_numeric_string(4)
             EmailHandling.store_email_entry(user=user, email_type=email_type, otp=otp)
             print(user.phoneNumber)
-            # message = client.messages.create(from_=settings.TWILIO_NUMBER, to="+91" + user.phoneNumber,
-            #                                  body="Please find otp for your request from {0} : {1}".format(*[domain, otp]))
-            # print(print(message.sid))
+            message = client.messages.create(from_=settings.TWILIO_NUMBER, to="+91" + user.phoneNumber,
+                                             body="Please find otp for your request from {0} : {1}".format(*[domain, otp]))
+            print(print(message.sid))
             return r
         except TwilioRestException as ex:
             print(ex)
