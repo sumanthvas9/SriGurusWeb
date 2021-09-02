@@ -96,6 +96,14 @@ class CategoriesAdmin(admin.ModelAdmin):
     actions = ['make_active', 'make_inactive']
 
 
+@admin.register(models.AboutUsInfo)
+class AboutUsAdmin(admin.ModelAdmin):
+    list_display = ('title', 'heading', 'description', 'listInfo')
+    search_fields = (
+        "title__icontains", 'heading__icontains', 'description__icontains', 'listInfo__icontains')
+    list_per_page = 25
+
+
 class BuildingAddressInline(admin.StackedInline):
     model = models.BuildingAddress
 

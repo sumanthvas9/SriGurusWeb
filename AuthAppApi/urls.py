@@ -40,6 +40,7 @@ urlpatterns = [
     re_path(r"set_profile", views.set_user_info, name="api_set_profile"),
     re_path(r"get_profile", views.get_user_info, name="api_get_profile"),
     re_path(r"categories", views.get_categories_info, name="api_categories"),
+    re_path(r"about_us", views.about_us_info, name="about_us"),
     re_path(r"new_request", views.create_service_request, name="api_create_service_request"),
     re_path(r"my_requests", views.get_submitted_requests, name="api_my_service_request"),
     re_path(r"new_form_request", views.create_service_request_with_form, name="api_create_service_request_with_form"),

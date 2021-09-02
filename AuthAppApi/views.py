@@ -11,10 +11,10 @@ from rest_framework.parsers import JSONParser
 from rest_framework.response import Response as restResponse
 
 from AuthApp.custom.notify import EmailHandling, SmsHandling
-from AuthApp.models import UserDetails, Categories, ServiceRequest
+from AuthApp.models import UserDetails, Categories, ServiceRequest, AboutUsInfo
 from AuthAppApi.serializers import RegisterSerializer, EmailLoginSerializer, UserDetailsSerializer, CategoriesSerializer, ServiceRequestSerializer, \
     ForgotPasswordSerializer, OTPValidationSerializer, OTPResendSerializer, UserDetailsSerializerFromParent, ServiceRequestWithFormSerializer, \
-    SmsSerializer, SmsLoginSerializer
+    SmsSerializer, SmsLoginSerializer, AboutUsSerializer
 
 UserModel = get_user_model()
 
@@ -306,6 +306,14 @@ def get_categories_info(request):
     queryset = Categories.objects.filter(isActive=True)
     serializer = CategoriesSerializer(queryset, many=True)
     return restResponse({"msg": "Categories Info", "data": serializer.data}, status=status.HTTP_200_OK)
+
+
+@api_view(["GET"])
+@permission_classes([permissions.AllowAny])
+def about_us_info(request):
+    queryset = AboutUsInfo.objects.filter()
+    serializer = AboutUsSerializer(queryset, many=True)
+    return restResponse({"msg": "About Us Info", "data": serializer.data}, status=status.HTTP_200_OK)
 
 
 @api_view(["POST"])

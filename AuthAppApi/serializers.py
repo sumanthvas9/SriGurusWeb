@@ -8,7 +8,7 @@ from rest_framework.exceptions import APIException
 
 from AuthApp.custom.notify import EmailHandling, SmsHandling
 from AuthApp.models import EmailDirectory, EMAIL_TYPE_CHOICES, UserDetails, Categories, ServiceRequest, BuildingAddress, BuildingInfo, \
-    RepairedBuildingInfo, REPAIRED_BUILDING_TYPE, BUILDING_INFO_FLOOR
+    RepairedBuildingInfo, REPAIRED_BUILDING_TYPE, BUILDING_INFO_FLOOR, AboutUsInfo
 
 UserModel = get_user_model()
 
@@ -404,6 +404,16 @@ class CategoriesSerializer(serializers.ModelSerializer):
             'tel_pdf_url': {'source': 'telPdfUrl'},
             'hindi_name': {'source': 'hindiName'},
             'hindi_pdf_url': {'source': 'hindiPdfUrl'},
+        }
+
+
+class AboutUsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = AboutUsInfo
+        fields = ['title', 'heading', 'content_string', 'content_list']
+        extra_kwargs = {
+            'content_string': {'source': 'description'},
+            'content_list': {'source': 'listInfo'},
         }
 
 

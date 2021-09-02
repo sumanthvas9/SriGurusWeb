@@ -296,3 +296,18 @@ class RepairedBuildingInfo(models.Model):
 
     def __str__(self):
         return self.buildingType
+
+
+class AboutUsInfo(models.Model):
+    title = models.TextField(db_column='title', verbose_name='Title', max_length=5000, blank=False, null=False)
+    heading = models.TextField(db_column='heading', verbose_name='Heading', max_length=5000, blank=True, null=True)
+    description = models.TextField(db_column='description', verbose_name='Description', max_length=5000, blank=True, null=True)
+    listInfo = models.TextField(db_column='list_info', verbose_name='List Info', max_length=10000, blank=True, null=True)
+
+    class Meta:
+        db_table = 'ABOUT_US_INFO'
+        verbose_name = 'About Us Info'
+        verbose_name_plural = 'About Us Info'
+
+    def __str__(self):
+        return self.title
